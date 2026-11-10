@@ -1,6 +1,7 @@
 import path from "path";
 import { buildSnapshot, type FactorySnapshot } from "@/src/domain/derive";
 import type { JobRecord } from "@/src/domain/types";
+import { pullDatabase, pushDatabase } from "@/src/jobs/blob-sync";
 import { approveJob, catchUp, createClientJob, readJob, resetSimulation } from "@/src/jobs/runner";
 import type { FactoryRepository } from "@/src/jobs/repository";
 import { SqliteFactoryRepository } from "@/src/jobs/sqlite-repository";
@@ -11,7 +12,34 @@ const globalStore = globalThis as unknown as {
 };
 
 function dbFile(): string {
-  return process.env.LINKR_DB_PATH ?? path.join(process.cwd(), "data", "linkr-factory.sqlite");
+  if (process.env.LINKR_DB_PATH) return process.env.LINKR_DB_PATH;
+  if (process.env.VERCEL) return "/tmp/linkr-factory.sqlite";
+  return path.join(process.cwd(), "data", "linkr-factory.sqlite");
+}
+
+function closeRepo(): void {
+  const repo = globalStore.__linkrRepo;
+  if (repo && "close" in repo && typeof repo.close === "function") repo.close();
+  globalStore.__linkrRepo = undefined;
+}
+
+/** Load the latest saved factory, run the handler, then write the file back when Blob is configured. */
+export async function withFactory<T>(fn: () => T): Promise<T> {
+  const file = dbFile();
+  try {
+    await pullDatabase(file, closeRepo);
+  } catch (error) {
+    console.error("[linkr] blob pull failed", error);
+  }
+  try {
+    return fn();
+  } finally {
+    try {
+      await pushDatabase(file);
+    } catch (error) {
+      console.error("[linkr] blob push failed", error);
+    }
+  }
 }
 
 export function getRepo(): FactoryRepository {
@@ -23,6 +51,7 @@ export function getRepo(): FactoryRepository {
 
 /** Keep advancing due jobs while the server process is up, even if the browser is closed. */
 export function ensureTicker(): void {
+  if (process.env.VERCEL) return;
   if (globalStore.__linkrTimer) return;
   const timer = setInterval(() => {
     try {

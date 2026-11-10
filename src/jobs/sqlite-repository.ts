@@ -17,8 +17,9 @@ export class SqliteFactoryRepository implements FactoryRepository {
   constructor(filename: string) {
     fs.mkdirSync(path.dirname(filename), { recursive: true });
     this.db = new DatabaseSync(filename);
+    const journal = process.env.VERCEL ? "DELETE" : "WAL";
     this.db.exec(`
-      PRAGMA journal_mode = WAL;
+      PRAGMA journal_mode = ${journal};
       PRAGMA synchronous = FULL;
       CREATE TABLE IF NOT EXISTS jobs (
         id TEXT PRIMARY KEY,
