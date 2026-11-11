@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { requireMutation } from "@/src/auth/guard";
+import { assertJobBody, readJsonLimited } from "@/src/auth/validate";
 import { jsonError } from "@/src/jobs/http";
 import { createFactoryJob, readFactorySnapshot, withFactory } from "@/src/jobs/runtime";
 
@@ -16,9 +18,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { kind?: unknown; inputs?: unknown; simulation?: unknown };
+    const role = requireMutation(request, "create");
+    const body = assertJobBody(await readJsonLimited(request));
     const result = await withFactory(() => {
-      const job = createFactoryJob(body);
+      const job = createFactoryJob(body, role);
       return { job, factory: readFactorySnapshot() };
     });
     return NextResponse.json(result, { status: 201 });

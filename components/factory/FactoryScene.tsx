@@ -27,7 +27,7 @@ export function FactoryScene({
     <div className="relative h-full w-full">
     <Canvas
       camera={{ position: [0.8, 13, 0.4], fov: 46, near: 0.1, far: 200 }}
-      dpr={[1, 1.75]}
+      dpr={[1, 1.5]}
       shadows
       gl={{ antialias: true, alpha: false }}
       onPointerMissed={() => onSelect(null)}
@@ -67,7 +67,7 @@ export function FactoryScene({
         key={label.id}
         type="button"
         data-testid={`building-${label.id}`}
-        className="pointer-events-auto absolute z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white/15 bg-black/70 px-2 py-1 text-[10px] font-medium text-white"
+        className="pointer-events-auto absolute z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white/20 bg-black/80 px-2.5 py-1.5 text-xs font-medium tracking-tight text-white"
         style={{ left: label.x, top: label.y }}
         onClick={(event) => {
           event.stopPropagation();
@@ -164,7 +164,7 @@ function CameraRig() {
       const controls = rig();
       if (!controls) return;
       const offset = controls.object.position.clone().sub(controls.target);
-      const next = Math.min(52, Math.max(12, offset.length() * (direction > 0 ? 0.84 : 1.18)));
+      const next = Math.min(52, Math.max(8, offset.length() * (direction > 0 ? 0.82 : 1.16)));
       offset.setLength(next);
       controls.object.position.copy(controls.target).add(offset);
       controls.update();
@@ -190,10 +190,13 @@ function CameraRig() {
     <OrbitControls
       makeDefault
       enableDamping
-      dampingFactor={0.08}
-      minDistance={12}
+      enablePan
+      screenSpacePanning
+      dampingFactor={0.12}
+      minDistance={8}
       maxDistance={52}
-      maxPolarAngle={Math.PI / 2.12}
+      minPolarAngle={0.35}
+      maxPolarAngle={Math.PI / 2.15}
       target={[0.8, 0, 0]}
     />
   );

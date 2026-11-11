@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FactoryView } from "@/components/factory/FactoryView";
+import { CommandCenter } from "@/components/game/CommandCenter";
 import { DetailPanel } from "@/components/ui/DetailPanel";
 import { MissionList } from "@/components/ui/MissionList";
 import { fetchFactory, postApprove, postJob, postReset } from "@/lib/api";
 import { buttonClass, formatResourceAmount, STATUS_HEX, STATUS_LABEL } from "@/lib/format";
 import type { FactorySnapshot, StationView } from "@/src/domain/derive";
+import type { Role } from "@/src/auth/permissions";
 import type { StationId } from "@/src/domain/types";
 import { browserPreferenceStore } from "@/src/persistence/ui-prefs";
 
@@ -18,10 +20,19 @@ export function FactoryApp() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [role, setRole] = useState<Role | null>(null);
 
   const adopt = useCallback((next: FactorySnapshot) => {
     setSnapshot((current) => (current && next.serverNow < current.serverNow ? current : next));
     setReceivedAt(Date.now());
+  }, []);
+
+  useEffect(() => {
+    void fetch("/api/session", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((body: { role?: Role | null }) => setRole(body.role ?? null))
+      .catch(() => setRole(null));
   }, []);
 
   useEffect(() => {
@@ -81,6 +92,9 @@ export function FactoryApp() {
   }, []);
 
   const station = snapshot?.stations.find((item) => item.id === selectedId) ?? null;
+  const canCreate = role === "administrator" || role === "operator";
+  const canApprove = role === "administrator";
+  const canReset = role === "administrator";
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-ink text-white">
@@ -106,7 +120,10 @@ export function FactoryApp() {
               <button type="button" className={buttonClass.tiny} data-testid="reset-camera" onClick={() => window.dispatchEvent(new Event("linkr-camera-reset"))}>
                 Reset view
               </button>
-              <button type="button" className={buttonClass.tiny} data-testid="reset-simulation" disabled={pending} onClick={() => void act(postReset)}>
+              <button type="button" className={buttonClass.tiny} data-testid="open-command" onClick={() => setCommandOpen(true)}>
+                Command
+              </button>
+              <button type="button" className={buttonClass.tiny} data-testid="reset-simulation" disabled={pending || !canReset} onClick={() => void act(postReset)}>
                 Reset simulation
               </button>
             </div>
@@ -128,17 +145,17 @@ export function FactoryApp() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {snapshot.workflow.status === "idle" && (
-                  <button type="button" className={buttonClass.primary} data-testid="start-run" disabled={pending} onClick={() => void act(() => postJob("lead.intake"))}>
+                  <button type="button" className={buttonClass.primary} data-testid="start-run" disabled={pending || !canCreate} onClick={() => void act(() => postJob("lead.intake"))}>
                     Start simulated lead
                   </button>
                 )}
                 {snapshot.recoverableFailure && (
-                  <button type="button" className={buttonClass.primary} data-testid="resolve-block" disabled={pending} onClick={() => void act(() => postJob("workflow.resolve_block", { failedJobId: snapshot.recoverableFailure?.jobId }))}>
+                  <button type="button" className={buttonClass.primary} data-testid="resolve-block" disabled={pending || !canCreate} onClick={() => void act(() => postJob("workflow.resolve_block", { failedJobId: snapshot.recoverableFailure?.jobId }))}>
                     Resolve block
                   </button>
                 )}
                 {snapshot.pendingApprovalJobId && (
-                  <button type="button" className={buttonClass.primary} data-testid="approve" disabled={pending} onClick={() => void act(() => postApprove(snapshot.pendingApprovalJobId!))}>
+                  <button type="button" className={buttonClass.primary} data-testid="approve" disabled={pending || !canApprove} onClick={() => void act(() => postApprove(snapshot.pendingApprovalJobId!))}>
                     Approve
                   </button>
                 )}
@@ -179,7 +196,7 @@ export function FactoryApp() {
           )}
         </header>
 
-        <div className="flex min-h-0 flex-1">
+        <div className="relative flex min-h-0 flex-1">
           <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-white/10 bg-[#0B0F1A] lg:block">
             {snapshot && <MissionList snapshot={snapshot} />}
           </aside>
@@ -197,7 +214,7 @@ export function FactoryApp() {
               <DetailPanel
                 station={station}
                 snapshot={snapshot}
-                pending={pending}
+                pending={pending || !canCreate}
                 onClose={() => selectStation(null)}
                 onBuild={(id) => void act(() => postJob("station.build", { stationId: id }))}
                 onUpgrade={(id) => void act(() => postJob("station.upgrade", { stationId: id }))}
@@ -205,6 +222,21 @@ export function FactoryApp() {
               />
             )}
           </aside>
+          {commandOpen && snapshot && (
+            <CommandCenter
+              role={role}
+              pending={pending || !canCreate}
+              canCreate={canCreate}
+              canApprove={canApprove}
+              canReset={canReset}
+              pendingApproval={Boolean(snapshot.pendingApprovalJobId)}
+              onRole={setRole}
+              onStart={() => void act(() => postJob("lead.intake"))}
+              onApprove={() => snapshot.pendingApprovalJobId && void act(() => postApprove(snapshot.pendingApprovalJobId!))}
+              onReset={() => void act(postReset)}
+              onClose={() => setCommandOpen(false)}
+            />
+          )}
         </div>
 
         {snapshot && (
@@ -224,7 +256,7 @@ export function FactoryApp() {
                 <DetailPanel
                   station={station}
                   snapshot={snapshot}
-                  pending={pending}
+                  pending={pending || !canCreate}
                   onClose={() => selectStation(null)}
                   onBuild={(id) => void act(() => postJob("station.build", { stationId: id }))}
                   onUpgrade={(id) => void act(() => postJob("station.upgrade", { stationId: id }))}

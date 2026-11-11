@@ -234,19 +234,35 @@ export const MISSION_DEFS: MissionDef[] = [
  * that job. Until then every factory job stays on the simulation executor,
  * with simulation true and verified false.
  */
+const planned = (
+  id: string,
+  system: string,
+  purpose: string,
+  approvalPolicy: "owner" | "none",
+) =>
+  ({
+    id,
+    system,
+    purpose,
+    implemented: false as const,
+    verifiedExecution: false as const,
+    writesEnabled: false as const,
+    approvalPolicy,
+  }) as const;
+
 export const PLANNED_EXECUTORS = [
-  { id: "lead-research", system: "agent", purpose: "Authorized lead research", implemented: false as const, verifiedExecution: false as const },
-  { id: "crm", system: "agent", purpose: "CRM updates", implemented: false as const, verifiedExecution: false as const },
-  { id: "website", system: "agent", purpose: "Website work", implemented: false as const, verifiedExecution: false as const },
-  { id: "marketing", system: "agent", purpose: "Marketing assets", implemented: false as const, verifiedExecution: false as const },
-  { id: "proposals", system: "agent", purpose: "Proposals", implemented: false as const, verifiedExecution: false as const },
-  { id: "reporting", system: "agent", purpose: "Reporting", implemented: false as const, verifiedExecution: false as const },
-  { id: "github", system: "github", purpose: "GitHub repository work", implemented: false as const, verifiedExecution: false as const },
-  { id: "shopify", system: "shopify", purpose: "Shopify store operations", implemented: false as const, verifiedExecution: false as const },
-  { id: "meta", system: "meta", purpose: "Meta publishing", implemented: false as const, verifiedExecution: false as const },
-  { id: "google-drive", system: "google-drive", purpose: "Google Drive files", implemented: false as const, verifiedExecution: false as const },
-  { id: "supabase", system: "supabase", purpose: "Supabase data", implemented: false as const, verifiedExecution: false as const },
-  { id: "vercel", system: "vercel", purpose: "Vercel deploys", implemented: false as const, verifiedExecution: false as const },
+  planned("lead-research", "agent", "Authorized lead research", "owner"),
+  planned("crm", "agent", "CRM updates", "owner"),
+  planned("website", "agent", "Website work", "owner"),
+  planned("marketing", "agent", "Marketing assets", "owner"),
+  planned("proposals", "agent", "Proposals", "owner"),
+  planned("reporting", "agent", "Reporting", "owner"),
+  planned("github", "github", "GitHub repository work", "owner"),
+  planned("shopify", "shopify", "Shopify store operations", "owner"),
+  planned("meta", "meta", "Meta publishing", "owner"),
+  planned("google-drive", "google-drive", "Google Drive files", "owner"),
+  planned("supabase", "supabase", "Supabase data", "owner"),
+  planned("vercel", "vercel", "Vercel deploys", "owner"),
 ] as const;
 
 export function resourceGain(kind: JobKind, inputs: Record<string, unknown>): Partial<Record<ResourceId, number>> | undefined {

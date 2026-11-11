@@ -6,6 +6,7 @@ export const STATUS_HEX: Record<MachineStatus, string> = {
   blocked: "#F5B942",
   awaiting_approval: "#C4B5FD",
   completed: "#34D399",
+  offline: "#334155",
 };
 
 export const STATUS_LABEL: Record<MachineStatus, string> = {
@@ -14,6 +15,7 @@ export const STATUS_LABEL: Record<MachineStatus, string> = {
   blocked: "Blocked",
   awaiting_approval: "Awaiting approval",
   completed: "Completed",
+  offline: "Offline",
 };
 
 export function formatResourceAmount(id: string, amount: number): string {

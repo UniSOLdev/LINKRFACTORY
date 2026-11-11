@@ -83,6 +83,7 @@ export function deriveMachineStatus(station: FactoryState["stations"][number], j
   const unresolved = mine.filter((job) => job.status === "failed" && job.outputs?.recoverable === true && !failureResolved(jobs, job));
   if (unresolved.length > 0) return "blocked";
   if (mine.some((job) => job.status === "completed")) return "completed";
+  if (!station.built) return "offline";
   return "idle";
 }
 
