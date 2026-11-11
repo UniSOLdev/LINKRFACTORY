@@ -4,6 +4,7 @@ import type { JobRecord } from "@/src/domain/types";
 import { pullDatabase, pushDatabase } from "@/src/jobs/blob-sync";
 import { approveJob, catchUp, createClientJob, readJob, resetSimulation } from "@/src/jobs/runner";
 import type { FactoryRepository } from "@/src/jobs/repository";
+import { withPostgresFactory } from "@/src/jobs/postgres-store";
 import { SqliteFactoryRepository } from "@/src/jobs/sqlite-repository";
 
 const globalStore = globalThis as unknown as {
@@ -23,8 +24,19 @@ function closeRepo(): void {
   globalStore.__linkrRepo = undefined;
 }
 
-/** Load the latest saved factory, run the handler, then write the file back when Blob is configured. */
+/** Load the latest saved factory, run the handler, then write it back. */
 export async function withFactory<T>(fn: () => T): Promise<T> {
+  if (process.env.SUPABASE_DB_URL) {
+    return withPostgresFactory((memory) => {
+      const previous = globalStore.__linkrRepo;
+      globalStore.__linkrRepo = memory;
+      try {
+        return fn();
+      } finally {
+        globalStore.__linkrRepo = previous;
+      }
+    });
+  }
   const file = dbFile();
   try {
     await pullDatabase(file, closeRepo);
@@ -51,7 +63,7 @@ export function getRepo(): FactoryRepository {
 
 /** Keep advancing due jobs while the server process is up, even if the browser is closed. */
 export function ensureTicker(): void {
-  if (process.env.VERCEL) return;
+  if (process.env.VERCEL || process.env.SUPABASE_DB_URL) return;
   if (globalStore.__linkrTimer) return;
   const timer = setInterval(() => {
     try {
@@ -72,14 +84,17 @@ export function readFactorySnapshot(): FactorySnapshot {
   return buildSnapshot(repo.getFactory(), repo.listJobs(), now);
 }
 
-export function createFactoryJob(body: { kind?: unknown; inputs?: unknown; simulation?: unknown }): JobRecord {
+export function createFactoryJob(
+  body: { kind?: unknown; inputs?: unknown; simulation?: unknown },
+  actor?: string,
+): JobRecord {
   ensureTicker();
-  return createClientJob(getRepo(), body, Date.now());
+  return createClientJob(getRepo(), body, Date.now(), actor);
 }
 
-export function approveFactoryJob(id: string): JobRecord {
+export function approveFactoryJob(id: string, actor?: string): JobRecord {
   ensureTicker();
-  return approveJob(getRepo(), id, Date.now());
+  return approveJob(getRepo(), id, Date.now(), actor);
 }
 
 export function readFactoryJob(id: string): JobRecord {

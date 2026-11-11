@@ -21,6 +21,16 @@ function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
+function isOpenStatus(status: JobRecord["status"]): boolean {
+  return status === "queued" || status === "running" || status === "awaiting_approval";
+}
+
+function sameOpenRequest(job: JobRecord, kind: JobKind, raw: Record<string, unknown>): boolean {
+  if (job.kind !== kind || !isOpenStatus(job.status)) return false;
+  if (kind === "lead.intake" || kind === "workflow.resolve_block") return true;
+  return typeof raw.stationId === "string" && job.inputs.stationId === raw.stationId;
+}
+
 function stationOf(job: JobRecord): StationId | null {
   const id = job.inputs.stationId;
   return typeof id === "string" && isStationId(id) ? id : null;
@@ -34,7 +44,13 @@ function busy(jobs: JobRecord[], stationId: StationId, exceptId?: string): boole
   });
 }
 
-function insertJob(repo: FactoryRepository, kind: JobKind, inputs: Record<string, unknown>, createdMs: number): JobRecord {
+function insertJob(
+  repo: FactoryRepository,
+  kind: JobKind,
+  inputs: Record<string, unknown>,
+  createdMs: number,
+  actor?: string,
+): JobRecord {
   const factory = repo.getFactory();
   const stationId = inputs.stationId;
   if (typeof stationId !== "string" || !isStationId(stationId)) {
@@ -68,7 +84,9 @@ function insertJob(repo: FactoryRepository, kind: JobKind, inputs: Record<string
       {
         at: createdAt,
         action: "created",
-        detail: "Queued on the simulation adapter. No external system was called.",
+        detail: actor
+          ? `Signed-in ${actor} queued this on the simulation adapter. No external system was called.`
+          : "Queued on the simulation adapter. No external system was called.",
       },
     ],
   };
@@ -81,6 +99,7 @@ export function createClientJob(
   repo: FactoryRepository,
   body: { kind?: unknown; inputs?: unknown; simulation?: unknown },
   nowMs: number,
+  actor?: string,
 ): JobRecord {
   if (body.simulation === false) {
     throw new WorkflowError(
@@ -102,13 +121,24 @@ export function createClientJob(
 
   const factory = repo.getFactory();
   const jobs = repo.listJobs();
+  const requestId = typeof raw.clientRequestId === "string" && raw.clientRequestId.length > 0 && raw.clientRequestId.length <= 80
+    ? raw.clientRequestId
+    : undefined;
+  const prior = requestId ? jobs.find((job) => job.inputs.clientRequestId === requestId) : undefined;
+  const openSame = jobs.find((job) => sameOpenRequest(job, kind, raw));
+  const replay = prior ?? openSame;
+  if (replay) {
+    catchUp(repo, nowMs);
+    return repo.getJob(replay.id) ?? replay;
+  }
   const inputs = clientInputs(kind, raw, factory, jobs);
+  if (requestId) inputs.clientRequestId = requestId;
   const stationId = inputs.stationId as StationId;
   if (busy(jobs, stationId)) {
     throw new WorkflowError("CONFLICT", "That station already has an open job.");
   }
 
-  const job = repo.transaction(() => insertJob(repo, kind, inputs, nowMs));
+  const job = repo.transaction(() => insertJob(repo, kind, inputs, nowMs, actor));
   catchUp(repo, nowMs);
   const saved = repo.getJob(job.id);
   if (!saved) throw new WorkflowError("NOT_FOUND", "Job disappeared after create.");
@@ -182,7 +212,7 @@ function blockTaken(jobs: JobRecord[], failedJobId: string): boolean {
   );
 }
 
-export function approveJob(repo: FactoryRepository, id: string, nowMs: number): JobRecord {
+export function approveJob(repo: FactoryRepository, id: string, nowMs: number, actor?: string): JobRecord {
   const job = repo.getJob(id);
   if (!job) throw new WorkflowError("NOT_FOUND", "Job not found.");
   if (job.simulation !== true) {
@@ -205,7 +235,13 @@ export function approveJob(repo: FactoryRepository, id: string, nowMs: number): 
     updatedAt: at,
     audit: [
       ...job.audit,
-      { at, action: "approved", detail: "Owner approved this simulated step in the app." },
+      {
+        at,
+        action: "approved",
+        detail: actor
+          ? `Signed-in ${actor} approved this simulated step in the app. Nothing was sent.`
+          : "Owner approved this simulated step in the app.",
+      },
       { at, action: "completed", detail: outputs.summary },
     ],
   };

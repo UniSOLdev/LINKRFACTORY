@@ -26,8 +26,8 @@ export function FactoryScene({
   return (
     <div className="relative h-full w-full">
     <Canvas
-      camera={{ position: [0.8, 13, 0.4], fov: 46, near: 0.1, far: 200 }}
-      dpr={[1, 1.75]}
+      camera={{ position: [7.4, 7.6, 7.2], fov: 42, near: 0.1, far: 200 }}
+      dpr={[1, 1.5]}
       shadows
       gl={{ antialias: true, alpha: false }}
       onPointerMissed={() => onSelect(null)}
@@ -67,7 +67,7 @@ export function FactoryScene({
         key={label.id}
         type="button"
         data-testid={`building-${label.id}`}
-        className="pointer-events-auto absolute z-10 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-white/15 bg-black/70 px-2 py-1 text-[10px] font-medium text-white"
+        className="pointer-events-auto absolute z-10 min-h-11 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-[#C4B5FD]/40 bg-black/80 px-3 text-sm font-medium tracking-tight text-white"
         style={{ left: label.x, top: label.y }}
         onClick={(event) => {
           event.stopPropagation();
@@ -164,7 +164,7 @@ function CameraRig() {
       const controls = rig();
       if (!controls) return;
       const offset = controls.object.position.clone().sub(controls.target);
-      const next = Math.min(52, Math.max(12, offset.length() * (direction > 0 ? 0.84 : 1.18)));
+      const next = Math.min(52, Math.max(8, offset.length() * (direction > 0 ? 0.82 : 1.16)));
       offset.setLength(next);
       controls.object.position.copy(controls.target).add(offset);
       controls.update();
@@ -172,7 +172,7 @@ function CameraRig() {
     const reset = () => {
       const controls = rig();
       if (!controls) return;
-      controls.object.position.set(0.8, 13, 0.4);
+      controls.object.position.set(7.4, 7.6, 7.2);
       controls.target.set(0.8, 0, 0);
       controls.update();
     };
@@ -190,10 +190,13 @@ function CameraRig() {
     <OrbitControls
       makeDefault
       enableDamping
-      dampingFactor={0.08}
-      minDistance={12}
+      enablePan
+      screenSpacePanning
+      dampingFactor={0.12}
+      minDistance={8}
       maxDistance={52}
-      maxPolarAngle={Math.PI / 2.12}
+      minPolarAngle={0.35}
+      maxPolarAngle={Math.PI / 2.15}
       target={[0.8, 0, 0]}
     />
   );
@@ -297,7 +300,7 @@ function Building({
   const color = STATUS_HEX[station.status];
   const height = station.id === "approval" ? 3.8 : 1.7;
   return (
-    <group position={station.position} scale={0.58}>
+    <group position={station.position} scale={0.7}>
       <mesh
         position={[0, height / 2, 0]}
         onClick={(event) => {
@@ -305,7 +308,7 @@ function Building({
           onSelect(station.id);
         }}
       >
-        <boxGeometry args={[3.4, height, 2.5]} />
+        <boxGeometry args={[4.4, height + 1.4, 3.4]} />
         <meshStandardMaterial transparent opacity={0} />
       </mesh>
       <mesh position={[0, 0.08, 0]} receiveShadow castShadow>
@@ -325,9 +328,21 @@ function Building({
         <sphereGeometry args={[0.14, 18, 18]} />
         <meshStandardMaterial ref={lamp} color={color} emissive={color} emissiveIntensity={0.4} />
       </mesh>
+      {station.status === "working" && (
+        <mesh position={[-1.15 + Math.max(station.progress, 0.04) * 1.15, 0.22, 1.25]}>
+          <boxGeometry args={[Math.max(station.progress, 0.04) * 2.3, 0.08, 0.1]} />
+          <meshStandardMaterial color="#C4B5FD" emissive="#7C3AED" emissiveIntensity={0.9} />
+        </mesh>
+      )}
+      {station.level > 1 && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
+          <ringGeometry args={[2.15, 2.28, 40]} />
+          <meshBasicMaterial color="#34D399" />
+        </mesh>
+      )}
       {selected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-          <ringGeometry args={[1.95, 2.12, 40]} />
+          <ringGeometry args={[2.05, 2.28, 40]} />
           <meshBasicMaterial color="#C4B5FD" />
         </mesh>
       )}

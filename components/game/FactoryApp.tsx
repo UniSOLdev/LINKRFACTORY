@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FactoryView } from "@/components/factory/FactoryView";
-import { DetailPanel } from "@/components/ui/DetailPanel";
-import { MissionList } from "@/components/ui/MissionList";
+import { AgentsBoard, MissionsBoard, OperationsBoard } from "@/components/game/Boards";
+import { GameHeader, GameNav, type GameTab } from "@/components/game/Hud";
+import { StationSheet } from "@/components/game/StationSheet";
 import { fetchFactory, postApprove, postJob, postReset } from "@/lib/api";
-import { buttonClass, formatResourceAmount, STATUS_HEX, STATUS_LABEL } from "@/lib/format";
+import { buttonClass, STATUS_HEX, STATUS_LABEL } from "@/lib/format";
+import type { Role } from "@/src/auth/permissions";
 import type { FactorySnapshot, StationView } from "@/src/domain/derive";
 import type { StationId } from "@/src/domain/types";
 import { browserPreferenceStore } from "@/src/persistence/ui-prefs";
@@ -17,11 +19,30 @@ export function FactoryApp() {
   const [receivedAt, setReceivedAt] = useState(() => Date.now());
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [tab, setTab] = useState<GameTab>("factory");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [role, setRole] = useState<Role | null>(null);
+  const [password, setPassword] = useState("");
+  const [clock, setClock] = useState("");
 
   const adopt = useCallback((next: FactorySnapshot) => {
     setSnapshot((current) => (current && next.serverNow < current.serverNow ? current : next));
     setReceivedAt(Date.now());
+  }, []);
+
+  useEffect(() => {
+    const tick = () => setClock(new Date().toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }));
+    tick();
+    const timer = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    void fetch("/api/session", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((body: { role?: Role | null }) => setRole(body.role ?? null))
+      .catch(() => setRole(null));
   }, []);
 
   useEffect(() => {
@@ -77,163 +98,126 @@ export function FactoryApp() {
 
   const selectStation = useCallback((id: StationId | null) => {
     setSelectedId(id);
-    if (id) setMobileOpen(true);
+    setTab("factory");
+    if (id) setSheetOpen(false);
   }, []);
 
+  const signIn = async () => {
+    setError(null);
+    const response = await fetch("/api/session", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const body = (await response.json()) as { role?: Role; error?: { message?: string } };
+    if (!response.ok || !body.role) {
+      setError(body.error?.message ?? "Sign-in failed.");
+      return;
+    }
+    setPassword("");
+    setRole(body.role);
+  };
+
+  const signOut = async () => {
+    await fetch("/api/session", { method: "DELETE" });
+    setRole(null);
+  };
+
   const station = snapshot?.stations.find((item) => item.id === selectedId) ?? null;
+  const canCreate = role === "administrator" || role === "operator";
+  const canApprove = role === "administrator";
+  const canReset = role === "administrator";
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-ink text-white">
-        <header className="border-b border-white/10 bg-[#05070D] px-3 py-2 sm:px-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-medium uppercase tracking-[0.42em] text-slate-500">Operating system</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg font-semibold tracking-tight">LINKR</span>
-                <span className="text-sm text-slate-400">Factory</span>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#07060f] text-white">
+      <GameHeader snapshot={snapshot} clock={clock}>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <p className="truncate text-[11px] text-slate-400" data-testid="lead-label">
+            {role ? role : "Signed out"}
+            {snapshot?.lead ? ` · ${snapshot.lead.name}` : ""}
+          </p>
+          <button type="button" className={buttonClass.tiny} data-testid="open-command" onClick={() => setSettingsOpen((open) => !open)}>
+            {settingsOpen ? "Hide" : "Settings"}
+          </button>
+        </div>
+        {settingsOpen && (
+          <div className="mt-2 space-y-2 rounded-2xl border border-white/10 bg-black/30 p-2" data-testid="settings-menu">
+            <div className="flex flex-wrap gap-2">
               <button type="button" className={buttonClass.tiny} data-testid="view-toggle" onClick={() => setView((current) => (current === "3d" ? "map" : "3d"))}>
                 {view === "3d" ? "Map" : "3D"}
               </button>
-              <button type="button" className={buttonClass.tiny} data-testid="zoom-in" onClick={() => window.dispatchEvent(new CustomEvent("linkr-zoom", { detail: 1 }))}>
-                Zoom in
-              </button>
-              <button type="button" className={buttonClass.tiny} data-testid="zoom-out" onClick={() => window.dispatchEvent(new CustomEvent("linkr-zoom", { detail: -1 }))}>
-                Zoom out
-              </button>
-              <button type="button" className={buttonClass.tiny} data-testid="reset-camera" onClick={() => window.dispatchEvent(new Event("linkr-camera-reset"))}>
-                Reset view
-              </button>
-              <button type="button" className={buttonClass.tiny} data-testid="reset-simulation" disabled={pending} onClick={() => void act(postReset)}>
-                Reset simulation
-              </button>
+              <button type="button" className={buttonClass.tiny} data-testid="zoom-in" onClick={() => window.dispatchEvent(new CustomEvent("linkr-zoom", { detail: 1 }))}>Zoom in</button>
+              <button type="button" className={buttonClass.tiny} data-testid="zoom-out" onClick={() => window.dispatchEvent(new CustomEvent("linkr-zoom", { detail: -1 }))}>Zoom out</button>
+              <button type="button" className={buttonClass.tiny} data-testid="reset-camera" onClick={() => window.dispatchEvent(new Event("linkr-camera-reset"))}>Reset view</button>
+              <button type="button" className={buttonClass.tiny} data-testid="reset-simulation" disabled={pending || !canReset} onClick={() => void act(postReset)}>Reset sim</button>
             </div>
-          </div>
-          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#C4B5FD] sm:line-clamp-none" data-testid="simulation-banner" data-simulation="true" data-verified="false">
-            {snapshot?.disclaimer ?? "All leads, tasks, deliverables, and revenue in LINKR Factory are simulated."}
-          </p>
-          {snapshot && (
-            <div className="mt-2 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.16em] text-slate-300" data-testid="workflow-status">
-                  {snapshot.workflow.status.replaceAll("_", " ")}
-                </span>
-                {snapshot.lead && (
-                  <span className="truncate text-sm text-slate-200" data-testid="lead-label">
-                    {snapshot.lead.name} · {snapshot.lead.company} · simulated lead
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {snapshot.workflow.status === "idle" && (
-                  <button type="button" className={buttonClass.primary} data-testid="start-run" disabled={pending} onClick={() => void act(() => postJob("lead.intake"))}>
-                    Start simulated lead
-                  </button>
-                )}
-                {snapshot.recoverableFailure && (
-                  <button type="button" className={buttonClass.primary} data-testid="resolve-block" disabled={pending} onClick={() => void act(() => postJob("workflow.resolve_block", { failedJobId: snapshot.recoverableFailure?.jobId }))}>
-                    Resolve block
-                  </button>
-                )}
-                {snapshot.pendingApprovalJobId && (
-                  <button type="button" className={buttonClass.primary} data-testid="approve" disabled={pending} onClick={() => void act(() => postApprove(snapshot.pendingApprovalJobId!))}>
-                    Approve
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-          {snapshot?.recoverableFailure && <p className="mt-2 text-sm text-[#F5B942]">{snapshot.recoverableFailure.reason}</p>}
-          {snapshot?.pendingApprovalJobId && (
-            <p className="mt-2 text-sm text-[#C4B5FD]">Approval required. The simulation stops here until you approve it. Nothing is sent.</p>
-          )}
-          {error && <p className="mt-2 text-sm text-[#F5B942]" data-testid="factory-error">{error}</p>}
-          {snapshot && (
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {snapshot.resources.map((resource) => (
-                <div
-                  key={resource.id}
-                  title={resource.definition}
-                  data-testid={`resource-${resource.id}`}
-                  data-simulation="true"
-                  data-verified="false"
-                  className="min-w-[6.4rem] shrink-0 rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-1.5"
-                >
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{resource.name}</p>
-                  <p className="text-sm font-semibold">
-                    {formatResourceAmount(resource.id, resource.amount)}
-                    <span className="ml-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[#A78BFA]">sim</span>
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-          {snapshot && (
-            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
-              {snapshot.stations.map((item) => (
-                <StationChip key={item.id} station={item} selected={item.id === selectedId} onSelect={selectStation} />
-              ))}
-            </div>
-          )}
-        </header>
-
-        <div className="flex min-h-0 flex-1">
-          <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-white/10 bg-[#0B0F1A] lg:block">
-            {snapshot && <MissionList snapshot={snapshot} />}
-          </aside>
-          <div className="relative min-w-0 flex-1">
-            <div className="absolute inset-0">
-              {snapshot ? (
-                <FactoryView snapshot={snapshot} selectedId={selectedId} receivedAt={receivedAt} view={view} onSelect={selectStation} />
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading factory state…</div>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={password}
+                autoComplete="current-password"
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Factory key"
+                className="min-h-11 flex-1 rounded-full border border-white/10 bg-black/40 px-3 text-sm outline-none"
+                data-testid="sign-in-password"
+              />
+              <button type="button" className={buttonClass.primary} data-testid="sign-in" onClick={() => void signIn()}>Sign in</button>
+              {role && (
+                <button type="button" className={buttonClass.ghost} onClick={() => void signOut()}>Sign out</button>
               )}
             </div>
           </div>
-          <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-white/10 bg-[#0B0F1A] lg:block">
+        )}
+        {error && <p className="mt-1 text-xs text-[#F5B942]" data-testid="factory-error">{error}</p>}
+      </GameHeader>
+
+      <div className="relative min-h-0 flex-1">
+        {tab === "factory" && (
+          <>
+            {snapshot ? (
+              <FactoryView snapshot={snapshot} selectedId={selectedId} receivedAt={receivedAt} view={view} onSelect={selectStation} />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading factory state…</div>
+            )}
             {snapshot && (
-              <DetailPanel
+              <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex gap-1.5 overflow-x-auto px-2">
+                {snapshot.stations.map((item) => (
+                  <StationChip key={item.id} station={item} selected={item.id === selectedId} onSelect={selectStation} />
+                ))}
+              </div>
+            )}
+            {snapshot && station && (
+              <StationSheet
                 station={station}
                 snapshot={snapshot}
                 pending={pending}
+                canCreate={canCreate}
+                expanded={sheetOpen}
+                onToggle={() => setSheetOpen((open) => !open)}
                 onClose={() => selectStation(null)}
                 onBuild={(id) => void act(() => postJob("station.build", { stationId: id }))}
                 onUpgrade={(id) => void act(() => postJob("station.upgrade", { stationId: id }))}
                 onConfigure={(id, shift) => void act(() => postJob("station.configure", { stationId: id, shift }))}
               />
             )}
-          </aside>
-        </div>
-
-        {snapshot && (
-          <div className="pointer-events-auto border-t border-white/10 bg-[#0B0F1A]/95 lg:hidden">
-            <button
-              type="button"
-              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm"
-              data-testid="mobile-sheet"
-              onClick={() => setMobileOpen((open) => !open)}
-            >
-              <span>{station ? station.name : "Missions and station"}</span>
-              <span className="text-xs uppercase tracking-[0.16em] text-slate-400">{mobileOpen ? "Hide" : "Open"}</span>
-            </button>
-            {mobileOpen && (
-              <div className="max-h-[48vh] overflow-y-auto">
-                <MissionList snapshot={snapshot} />
-                <DetailPanel
-                  station={station}
-                  snapshot={snapshot}
-                  pending={pending}
-                  onClose={() => selectStation(null)}
-                  onBuild={(id) => void act(() => postJob("station.build", { stationId: id }))}
-                  onUpgrade={(id) => void act(() => postJob("station.upgrade", { stationId: id }))}
-                  onConfigure={(id, shift) => void act(() => postJob("station.configure", { stationId: id, shift }))}
-                />
-              </div>
-            )}
-          </div>
+          </>
         )}
+        {tab === "operations" && <OperationsBoard />}
+        {tab === "missions" && snapshot && (
+          <MissionsBoard
+            snapshot={snapshot}
+            pending={pending}
+            canCreate={canCreate}
+            canApprove={canApprove}
+            onStart={() => void act(() => postJob("lead.intake"))}
+            onResolve={() => snapshot.recoverableFailure && void act(() => postJob("workflow.resolve_block", { failedJobId: snapshot.recoverableFailure?.jobId }))}
+            onApprove={() => snapshot.pendingApprovalJobId && void act(() => postApprove(snapshot.pendingApprovalJobId!))}
+          />
+        )}
+        {tab === "agents" && snapshot && <AgentsBoard snapshot={snapshot} />}
+        {tab !== "factory" && !snapshot && <div className="flex h-full items-center justify-center text-sm text-slate-400">Loading factory state…</div>}
+      </div>
+      <GameNav tab={tab} onChange={setTab} />
     </div>
   );
 }
@@ -251,10 +235,10 @@ function StationChip({
     <button
       type="button"
       data-testid={`station-chip-${station.id}`}
+      className={`pointer-events-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs ${selected ? "border-[#C4B5FD] bg-[#7C3AED]" : "border-white/15 bg-black/70"}`}
       onClick={() => onSelect(station.id)}
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${selected ? "border-[#C4B5FD] bg-[#7C3AED]/20" : "border-white/10 bg-black/30"}`}
     >
-      <span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_HEX[station.status] }} />
+      <span className="h-2 w-2 rounded-full" style={{ background: STATUS_HEX[station.status] }} />
       {station.shortName}
       <span className="sr-only">{STATUS_LABEL[station.status]}</span>
     </button>

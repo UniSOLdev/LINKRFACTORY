@@ -58,7 +58,7 @@ export function FallbackMap({
                   event.stopPropagation();
                   onSelect(station.id);
                 }}
-                className="absolute w-[18%] -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-2 py-2 text-left shadow-panel sm:w-[14%]"
+                className="absolute min-h-11 w-[22%] -translate-x-1/2 -translate-y-1/2 rounded-2xl border px-2 py-2 text-left shadow-panel sm:w-[16%]"
                 style={{
                   left: `${pos.left}%`,
                   top: `${pos.top}%`,
