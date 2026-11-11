@@ -164,6 +164,7 @@ describe("external adapters", () => {
       const planned = snapshot.plannedExecutors.find((executor) => executor.id === id);
       expect(planned?.implemented).toBe(false);
       expect(planned?.verifiedExecution).toBe(false);
+      expect(planned?.writesEnabled).toBe(false);
     }
     expect(snapshot.resources.every((resource) => resource.verified === false)).toBe(true);
     repo.close();

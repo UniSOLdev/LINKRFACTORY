@@ -1,7 +1,7 @@
 {
   "name": "linkr-factory",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "engines": {
     "node": ">=22"
   },
@@ -17,12 +17,14 @@
     "@react-three/fiber": "^9.8.2",
     "@vercel/blob": "^2.9.0",
     "next": "^15.5.29",
+    "pg": "^8.16.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "three": "^0.187.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "@types/pg": "^8.15.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.187.0",

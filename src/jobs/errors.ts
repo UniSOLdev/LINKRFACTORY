@@ -4,7 +4,10 @@ export type WorkflowErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"
   | "SIMULATION_ONLY"
-  | "INVALID_INPUT";
+  | "INVALID_INPUT"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "RATE_LIMITED";
 
 export class WorkflowError extends Error {
   readonly code: WorkflowErrorCode;
@@ -20,6 +23,12 @@ export function statusForError(code: WorkflowErrorCode): number {
   switch (code) {
     case "NOT_FOUND":
       return 404;
+    case "UNAUTHORIZED":
+      return 401;
+    case "FORBIDDEN":
+      return 403;
+    case "RATE_LIMITED":
+      return 429;
     case "CONFLICT":
     case "APPROVAL_REQUIRED":
       return 409;

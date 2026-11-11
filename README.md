@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. There is no public deploy.
+Open http://localhost:3000. Production deploys stay manual. See `docs/systems.md` for which systems are live and which stay simulated.
 
 Other checks:
 
@@ -22,9 +22,11 @@ npm run build
 npm start
 ```
 
-Job records are stored in `data/linkr-factory.sqlite` (Node's built-in `node:sqlite`). The file is created on first launch.
+Without `SUPABASE_DB_URL`, job records are stored in `data/linkr-factory.sqlite` (Node's built-in `node:sqlite`). The file is created on first launch. That file is for local development and tests.
 
-On Vercel the database file is `/tmp/linkr-factory.sqlite`. When the project has a Blob store (`BLOB_STORE_ID`), each API request loads and saves that file at `linkr-factory/state.sqlite`. The store is private. It still holds simulated jobs only. Without Blob, a Vercel instance keeps the file only until that instance goes away.
+When `SUPABASE_DB_URL` is set, each request loads the factory from Postgres, runs the simulation, and writes it back in one transaction. Anonymous API access is revoked. See `supabase/migrations` and `docs/systems.md`.
+
+Mutations require a signed-in administrator or operator. Copy `.env.example` to `.env.local` and set the session secret plus the three role passwords before using Command locally.
 
 This release uses `node:sqlite` instead of `better-sqlite3` so the durable store does not need a native addon. The warning that SQLite is still marked experimental in Node 22 is expected.
 

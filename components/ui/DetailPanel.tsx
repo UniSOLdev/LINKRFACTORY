@@ -26,10 +26,10 @@ export function DetailPanel({
         <p className="text-[10px] font-medium uppercase tracking-[0.38em] text-slate-500">Floor</p>
         <h2 className="text-xl font-semibold tracking-tight">LINKR operating floor</h2>
         <p className="text-sm leading-relaxed text-slate-400">
-          Select a building. Machine lights follow the job record: idle, working, blocked, awaiting approval, or completed.
+          Select a building. Machine lights follow the job record: idle, running, blocked, approval required, completed, or offline.
         </p>
         <p className="text-sm leading-relaxed text-slate-400">
-          Executor: simulation adapter. GitHub, Shopify, Meta, Google Drive, Supabase, Vercel, and the business agents are not connected.
+          Executor: simulation adapter. External business writes stay off. Open Command for live GitHub and Vercel status.
         </p>
         <ul className="space-y-2 text-sm text-slate-300">
           {snapshot.plannedExecutors.map((executor) => (

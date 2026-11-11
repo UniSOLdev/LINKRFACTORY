@@ -2,9 +2,9 @@ import type { FactoryState, JobRecord } from "@/src/domain/types";
 
 /**
  * Persistence port for factory jobs and workflow state.
- * SqliteFactoryRepository is the only implementation in this release.
- * A later SupabaseFactoryRepository can satisfy the same methods.
- * This app does not provision Supabase.
+ * SqliteFactoryRepository serves local development and unit tests.
+ * When SUPABASE_DB_URL is set, requests load this same interface from Postgres
+ * for the duration of one transaction. External business adapters stay off.
  */
 export interface FactoryRepository {
   getJob(id: string): JobRecord | null;

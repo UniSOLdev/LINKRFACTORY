@@ -42,6 +42,7 @@ export const MACHINE_STATUSES = [
   "blocked",
   "completed",
   "awaiting_approval",
+  "offline",
 ] as const;
 
 export type MachineStatus = (typeof MACHINE_STATUSES)[number];
