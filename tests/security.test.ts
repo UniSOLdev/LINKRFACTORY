@@ -99,6 +99,20 @@ describe("records stay simulated", () => {
     const exported = repo.exportState();
     copy.replaceState(exported.factory, exported.jobs);
     expect(copy.getJob(job.id)?.status).toBe(job.status);
+    const again = createClientJob(
+      repo,
+      { kind: "station.configure", inputs: { stationId: "intake", clientRequestId: "tap-1" }, simulation: true },
+      1_200,
+      "operator",
+    );
+    const repeat = createClientJob(
+      repo,
+      { kind: "station.configure", inputs: { stationId: "intake", clientRequestId: "tap-1" }, simulation: true },
+      1_400,
+      "operator",
+    );
+    expect(repeat.id).toBe(again.id);
+    expect(repo.listJobs().filter((item) => item.kind === "station.configure")).toHaveLength(1);
 
     const factory = initialFactory();
     const outreach = factory.stations.find((station) => station.id === "outreach");

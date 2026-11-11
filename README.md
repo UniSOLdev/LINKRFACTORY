@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Production deploys stay manual. See `docs/systems.md` for which systems are live and which stay simulated.
+Open http://localhost:3000. The floor opens on Factory. Operations, Missions, and Agents are the other tabs. Production deploys stay manual. See `docs/systems.md` for which systems are live and which stay simulated.
 
 Other checks:
 

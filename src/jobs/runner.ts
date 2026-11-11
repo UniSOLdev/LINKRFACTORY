@@ -21,6 +21,16 @@ function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
+function isOpenStatus(status: JobRecord["status"]): boolean {
+  return status === "queued" || status === "running" || status === "awaiting_approval";
+}
+
+function sameOpenRequest(job: JobRecord, kind: JobKind, raw: Record<string, unknown>): boolean {
+  if (job.kind !== kind || !isOpenStatus(job.status)) return false;
+  if (kind === "lead.intake" || kind === "workflow.resolve_block") return true;
+  return typeof raw.stationId === "string" && job.inputs.stationId === raw.stationId;
+}
+
 function stationOf(job: JobRecord): StationId | null {
   const id = job.inputs.stationId;
   return typeof id === "string" && isStationId(id) ? id : null;
@@ -111,7 +121,18 @@ export function createClientJob(
 
   const factory = repo.getFactory();
   const jobs = repo.listJobs();
+  const requestId = typeof raw.clientRequestId === "string" && raw.clientRequestId.length > 0 && raw.clientRequestId.length <= 80
+    ? raw.clientRequestId
+    : undefined;
+  const prior = requestId ? jobs.find((job) => job.inputs.clientRequestId === requestId) : undefined;
+  const openSame = jobs.find((job) => sameOpenRequest(job, kind, raw));
+  const replay = prior ?? openSame;
+  if (replay) {
+    catchUp(repo, nowMs);
+    return repo.getJob(replay.id) ?? replay;
+  }
   const inputs = clientInputs(kind, raw, factory, jobs);
+  if (requestId) inputs.clientRequestId = requestId;
   const stationId = inputs.stationId as StationId;
   if (busy(jobs, stationId)) {
     throw new WorkflowError("CONFLICT", "That station already has an open job.");
